@@ -1,1 +1,3 @@
-# noise_pattern
+# Noise pattern
+
+![](animation.gif)
