@@ -16,7 +16,7 @@ let textureSize = canvasHeight,
     textureHeight = textureSize;
 
 let textureNoise;
-let increment = 0.0200; // scale
+let increment = 0.0100; // scale
 let offsetX = 102.5,
     offsetY = 200.5,
     offsetZ = 100.0,
@@ -35,15 +35,16 @@ let sett;
 let gui;
 
 let counter = 0,
-    totalFrames = 256; // animation frames
+    fcounter = 0,
+    totalFrames = Math.pow(2, 9); // animation frames
 
 let capturer = new CCapture( { 
       format: 'png',
-      name: 'open_simplex_noise_loop_' + canvasWidth+'w_' + totalFrames + 'f',
+      name: 'open_simplex_noise_loop_' + textureSize+'w_' + totalFrames + 'f',
       // verbose: true
     } );
 
-const record = true;
+let record = false;
 
 function setup() {
   canvas = createCanvas(canvasWidth, canvasHeight).canvas;
@@ -65,28 +66,38 @@ function setup() {
   if (record) capturer.start();
 }
 
+function startRecord() {
+  record = true;
+  capturer.start();
+}
+
 function draw() {
+  if (counter == 460) startRecord();
   // -1 for save end frame equal first
   phi = map(counter, 0, totalFrames-1, 0, TWO_PI);
   sett.offsetZ = offsetZ + sin(phi) * radius;
   sett.offsetW = offsetW + cos(phi) * radius;
   updateTexture();
   drawTexture();
-  if (record && counter < totalFrames) {
-    // note that canvas animations don't run in the background
-    // you will have to keep the window open to record
-    capturer.capture(canvas);
-  }
-  else if (record) {
-    capturer.stop();
-    capturer.save();
-    // this will download a tar archive with the pngs inside
-    // extract with 7zip or a similar tool
-    // then use ffmpeg to convert into a gif or video
-    noLoop();
+  if (record) {
+    if (fcounter < totalFrames) {
+      // note that canvas animations don't run in the background
+      // you will have to keep the window open to record
+      capturer.capture(canvas);
+      console.log(nf(fcounter * 100 / totalFrames, 3, 1) + '%');
+    }
+    else {
+      record = false;
+      capturer.stop();
+      // this will download a tar archive with the pngs inside
+      // extract with 7zip or a similar tool
+      // then use ffmpeg to convert into a gif or video
+      capturer.save();
+      noLoop();
+    }
+    fcounter++;
   }
   counter++;
-  console.log(nf(counter * 100 / totalFrames, 3, 1) + '%');
 }
 
 function updateTexture() {
@@ -121,7 +132,17 @@ function updateTexture() {
     // multiplication factor
     const m = d != 0 ? r * sin(a) / d : 0;
     // return 3d coords
-    return [m * x, m * y, r - r * cos(a)]
+    return [m*x, m*y, r - r*cos(a)]
+  }
+
+  function limit_radius(x, y, max_r) {
+    // if point radius more than max_r return point with max_r radius
+    const r = sqrt(sq(x) + sq(y));
+    if (r < max_r) {
+      return [x, y];
+    } else {
+      return [x/r*max_r, y/r*max_r]; 
+    }
   }
 
   for (let y = 0; y < textureHeight; y++) {
@@ -144,10 +165,12 @@ function updateTexture() {
       //                     zoff * sett.increment * factor,
       //                     woff * sett.increment * factor);
 
-      let [x1, y1, z1] = calcRoundCoords( x - textureWidth / 2,
-                                          y - textureHeight / 2,
-                                          textureWidth / 2);
-      
+      let [cx, cy] = [x - textureWidth/2, y - textureHeight/2];
+
+      // [cx, cy] = limit_radius(cx, cy, textureWidth / 2);
+      let [x1, y1, z1] = calcRoundCoords( cx, cy, textureWidth / 4);
+
+
       n0 = noise.noise4D( (xoff + x1) * sett.increment,
                           (yoff + y1) * sett.increment,
                           (zoff + z1 * cos(phi)) * sett.increment,
@@ -180,7 +203,7 @@ function updateTexture() {
       textureNoise.pixels[index] = bright;
       textureNoise.pixels[index + 1] = bright;
       textureNoise.pixels[index + 2] = bright;
-      textureNoise.pixels[index + 3] = 255;
+      textureNoise.pixels[index + 3] = map(255 - bright, 0, 255, 5, 100);
     }
   }
   textureNoise.updatePixels();
@@ -188,7 +211,7 @@ function updateTexture() {
 }
 
 function drawTexture() {
-  background(200);
+  // background(200); // uncoment if not used alfachannel
   image(textureNoise, 0, 0);
 }
 
